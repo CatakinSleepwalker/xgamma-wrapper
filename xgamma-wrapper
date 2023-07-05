@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+
+#    Copyright (c) 2023 Egor Krupenev <egorkrupenev@gmail.com>
+#    
+#    This script allows you to adjust
+#    the gamma red, green and blue values for the display
+#    in the range from 0.1 to 9.9
+# 
+#    This script is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This script is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    Input parameters:
+#    -x or --reset - set gamma value to default
+#    -xr or --reset-red - set Red gamma value to default
+#    -xg or --reset-green - set Green gamma value to default
+#    -xb or --reset-blue - set Blue gamma value to default
+#    -u or --up <value> - RGB gamma up
+#    -d or --down <value> - RGB gamma down
+#    -ur or --up-red <value> - Red gamma up
+#    -dr or --down-red <value> - Red gamma down
+#    -ug or --up-green <value> - Green gamma up
+#    -dg or --down-green <value> - Green gamma down
+#    -ub or --up-blue <value> - Blue gamma up
+#    -db or --down-blue <value> - Blue gamma down 
+#    -i or --get-rgb - get current RGB gamma values
+#    -h or --help - get help
+#
+#              !!! Attention !!!
+#    <value> must be between 1 and 10
+#   
+#    Dependencies:
+#    X11
+#    xgamma
+
+# You can set default gamma values
+declare -A DEFAULT_GAMMA_RGB_INT=( ["R"]=1 ["G"]=1 ["B"]=1 )
+declare -A DEFAULT_GAMMA_RGB_FRC=( ["R"]=0 ["G"]=0 ["B"]=0 )
+
+RGB=($(xgamma 2>&1 | awk 'OFS=" " {print $3,$5,$7}'))
+
+declare -A GAMMA_RGB_INT=( ["R"]=${RGB[0]:0:1} ["G"]=${RGB[1]:0:1} ["B"]=${RGB[2]:0:1} )
+declare -A GAMMA_RGB_FRC=( ["R"]=${RGB[0]:2:1} ["G"]=${RGB[1]:2:1} ["B"]=${RGB[2]:2:1} )
+
+function _gamma_up {
+  local color="$1"
+  local up_val=$2
+  local sum_val=$((GAMMA_RGB_FRC["$color"]+up_val))
+
+  if [[ ${GAMMA_RGB_INT[$color]} -ge 9 && sum_val -ge 9 ]]; then
+    GAMMA_RGB_INT[$color]=9
+    GAMMA_RGB_FRC[$color]=9
+  elif [[ $sum_val -ge 10 ]]; then
+    ((GAMMA_RGB_INT[$color]++))
+    GAMMA_RGB_FRC[$color]=$((sum_val-10))
+  else
+    GAMMA_RGB_FRC[$color]=$sum_val
+  fi
+}
+
+function _red_gamma_up {
+  local color="R"
+  local up_val=$1
+  _gamma_up $color $up_val
+}
+
+function _green_gamma_up {
+  local color="G"
+  local up_val=$1
+  _gamma_up $color $up_val
+}
+
+function _blue_gamma_up {
+  local color="B"
+  local up_val=$1
+  _gamma_up $color $up_val
+}
+
+function _all_gamma_up {
+  local up_val=$1
+  _red_gamma_up $up_val
+  _green_gamma_up $up_val
+  _blue_gamma_up $up_val
+}
+
+function _gamma_down {
+  local color="$1"
+  local up_val=$2
+  local diff_val=$((GAMMA_RGB_FRC[$color]-down_val))
+  
+  if [[ ${GAMMA_RGB_INT[$color]} -eq 0 && diff_val -lt 1 || ${GAMMA_RGB_INT[$color]} -eq 1 && diff_val -lt -9 ]]; then
+    GAMMA_RGB_INT[$color]=0
+    GAMMA_RGB_FRC[$color]=1
+  elif [[ $diff_val -lt 0 ]]; then
+    ((GAMMA_RGB_INT[$color]--))
+    GAMMA_RGB_FRC[$color]=$((diff_val+10))
+  else
+    GAMMA_RGB_FRC[$color]=$diff_val
+  fi
+}
+
+function _red_gamma_down {
+  local color="R"
+  local down_val=$1
+  _gamma_down $color $down_val
+}
+
+function _green_gamma_down {
+  local color="G"
+  local down_val=$1
+  _gamma_down $color $down_val
+}
+
+function _blue_gamma_down {
+  local color="B"
+  local down_val=$1
+  _gamma_down $color $down_val
+}
+
+function _all_gamma_down {
+  local down_val=$1
+  _red_gamma_down $down_val
+  _green_gamma_down $down_val
+  _blue_gamma_down $down_val
+}
+
+function _red_gamma_reset {
+  GAMMA_RGB_INT["R"]=${DEFAULT_GAMMA_RGB_INT["R"]}
+  GAMMA_RGB_FRC["R"]=${DEFAULT_GAMMA_RGB_FRC["R"]}
+}
+
+function _green_gamma_reset {
+  GAMMA_RGB_INT["G"]=${DEFAULT_GAMMA_RGB_INT["G"]}
+  GAMMA_RGB_FRC["G"]=${DEFAULT_GAMMA_RGB_FRC["G"]}
+}
+
+function _blue_gamma_reset {
+  GAMMA_RGB_INT["B"]=${DEFAULT_GAMMA_RGB_INT["B"]}
+  GAMMA_RGB_FRC["B"]=${DEFAULT_GAMMA_RGB_FRC["B"]}
+}
+
+function _all_gamma_reset {
+  _red_gamma_reset
+  _green_gamma_reset
+  _blue_gamma_reset
+}
+
+function _get_current_gamma {
+  printf "Red: %s.%s\n" ${GAMMA_RGB_INT["R"]} ${GAMMA_RGB_FRC["R"]}
+  printf "Green: %s.%s\n" ${GAMMA_RGB_INT["G"]} ${GAMMA_RGB_FRC["G"]}
+  printf "Blue: %s.%s\n" ${GAMMA_RGB_INT["B"]} ${GAMMA_RGB_FRC["B"]}
+}
+
+function _get_help {
+  printf "  This script allows you to adjust\n"
+  printf "  the gamma red, green and blue values for the display\n\n"
+  printf "  Input parameters:\n"
+  printf "  <value> must be between 1 and 10 \n"
+  printf "  -x or --reset - set RGB gamma value to default\n"
+  printf "  -xr or --reset-red - set Red gamma value to default\n"
+  printf "  -xg or --reset-green - set Green gamma value to default\n"
+  printf "  -xb or --reset-blue - set Blue gamma value to default\n"
+  printf "  -u or --up <value> - RGB gamma up\n"
+  printf "  -d or --down <value> - RGB gamma down\n"
+  printf "  -ur or --up-red <value> - Red gamma up\n"
+  printf "  -dr or --down-red <value> - Red gamma down\n"
+  printf "  -ug or --up-green <value> - Green gamma up\n"
+  printf "  -dg or --down-green <value> - Green gamma down\n"
+  printf "  -ub or --up-blue <value> - Blue gamma up\n"
+  printf "  -db or --down-blue <value> - Blue gamma down\n"
+  printf "  -i or --get-rgb - get current RGB gamma values\n"
+  printf "  -h or --help - get help\n"
+}
+
+function _set_gamma {
+  local key="$1"
+  local value
+
+  if [[ $2 -gt 10 ]]; then
+    value=10
+  else
+    value=$2
+  fi
+
+  case $key in
+    -u) _all_gamma_up $value
+      ;;
+    --up) _all_gamma_up $value
+      ;;
+    -ur) _red_gamma_up $value
+      ;;
+    --up-red) _red_gamma_up $value
+      ;;
+    -ug) _green_gamma_up $value
+      ;;
+    --up-green) _green_gamma_up $value
+      ;;
+    -ub) _blue_gamma_up $value
+      ;;
+    --up-blue) _blue_gamma_up $value
+      ;;
+    -d) _all_gamma_down $value
+      ;;
+    --down) _all_gamma_down $value
+      ;;
+    -dr) _red_gamma_down $value
+      ;;
+    --down-red) _red_gamma_down $value
+      ;;
+    -dg) _green_gamma_down $value
+      ;;
+    --down-green) _green_gamma_down $value
+      ;;
+    -db) _blue_gamma_down $value
+      ;;
+    --down-blue) _blue_gamma_down $value
+      ;;
+    -x) _all_gamma_reset
+      ;;
+    --reset) _all_gamma_reset
+      ;;
+    -xr) _red_gamma_reset
+      ;;
+    --reset-red) _red_gamma_reset
+      ;;
+    -xg) _green_gamma_reset
+      ;;
+    --reset-green) _green_gamma_reset
+      ;;
+    -xb) _blue_gamma_reset
+      ;;
+    --reset-blue) _blue_gamma_reset
+      ;;
+    -i) _get_current_gamma
+      ;;
+    --get-rgb) _get_current_gamma
+      ;;
+    -h) _get_help
+      ;;
+    --help) _get_help
+      ;;
+    *)
+      _get_help
+      ;;
+  esac
+  xgamma -rgamma ${GAMMA_RGB_INT["R"]}.${GAMMA_RGB_FRC["R"]} -ggamma ${GAMMA_RGB_INT["G"]}.${GAMMA_RGB_FRC["G"]} -bgamma ${GAMMA_RGB_INT["B"]}.${GAMMA_RGB_FRC["B"]} 2> /dev/null
+}
+
+function _main {
+ _set_gamma $1 $2
+}
+
+_main $1 $2
